@@ -4,13 +4,21 @@
 #include <vector>
 #include <sstream>
 
+
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+
 using namespace std;
 int main(int argc, char *argv[]){
-    if(argc != 2){
+    if(argc != 3){
         cerr << "Wrong Input format\n";
         return 1;
     }
     string filename = argv[1];
+    string serverIP = argv[2];
 
     ifstream file(filename);
 
@@ -65,23 +73,109 @@ int main(int argc, char *argv[]){
     }
 
 
-    cout << "Graph:\n\n";
+    // cout << "Graph:\n\n";
 
-    cout << "    ";
-    for (int i = 0; i < N; i++) {
-        cout << char('A' + i) << "   ";
+    // cout << "    ";
+    // for (int i = 0; i < N; i++) {
+    //     cout << char('A' + i) << "   ";
+    // }
+    // cout << "\n";
+
+    // for (int i = 0; i < N; i++) {
+    //     cout << char('A' + i) << "   ";
+
+    //     for (int j = 0; j < N; j++) {
+    //         cout << graph[i][j] << "   ";
+    //     }
+
+    //     cout << "\n";
+    // }
+
+
+    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+
+    if(serverSocket < 0){
+        cerr << "Socket creation error\n";
+        return 1;
     }
-    cout << "\n";
 
-    for (int i = 0; i < N; i++) {
-        cout << char('A' + i) << "   ";
+    int reuse = 1;
 
-        for (int j = 0; j < N; j++) {
-            cout << graph[i][j] << "   ";
+    if (setsockopt(serverSocket,
+                   SOL_SOCKET,
+                   SO_REUSEADDR,
+                   &reuse,
+                   sizeof(reuse)) < 0) {
+
+        cerr << "Error: setsockopt failed\n";
+        close(serverSocket);
+        return 1;
+    }
+
+    sockaddr_in serverAddress{};
+
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(5000);
+    // serverAddress.sin_addr.s_addr = INADDR_ANY;
+
+    if (inet_pton(AF_INET, serverIP.c_str(),
+              &serverAddress.sin_addr) <= 0) {
+
+        cerr << "Error: Invalid IP address\n";
+        close(serverSocket);
+        return 1;
+    }
+
+
+    if (bind(serverSocket,
+             (struct sockaddr *)&serverAddress,
+             sizeof(serverAddress)) < 0) {
+
+        cerr << "Error: Could not bind TCP socket\n";
+        close(serverSocket);
+        return 1;
+    }
+
+
+    if(listen(serverSocket, 10) < 0){
+        cerr << "Listen Failed";
+        close(serverSocket);
+        return 1;
+    }
+
+    // cout << "Oracle node listening on port 5000\n";
+    cout << "\nOracle Node listening on "
+         << serverIP << ":5000\n";
+
+
+    int nodeCount = 0;
+
+    while (true) {
+
+        sockaddr_in clientAddress{};
+        socklen_t clientLength = sizeof(clientAddress);
+
+        int clientSocket = accept(
+            serverSocket,
+            (struct sockaddr *)&clientAddress,
+            &clientLength
+        );
+
+        if (clientSocket < 0) {
+            cerr << "Error: accept() failed\n";
+            continue;
         }
 
-        cout << "\n";
+        char nodeName = 'A' + nodeCount;
+
+        cout << "VN connected as node "
+             << nodeName << "\n";
+
+
+        nodeCount++;
     }
+
+    close(serverSocket);
 
     return 0;
 }
