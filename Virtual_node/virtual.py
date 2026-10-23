@@ -9,10 +9,20 @@ on_ip = sys.argv[1]
 my_ip = sys.argv[2]
 my_port = int(sys.argv[3])
 
-udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-udp_socket.bind((my_ip, my_port))
-tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-tcp_socket.connect((on_ip, 5000))
+try:
+    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_socket.bind((my_ip, my_port))
+except OSError as e:
+    print(f"Error: Failed to bind UDP socket on {my_ip}:{my_port} - {e}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp_socket.connect((on_ip, 5000))
+except OSError as e:
+    print(f"Error: Failed to connect to Oracle Node at {on_ip}:5000 - {e}", file=sys.stderr)
+    udp_socket.close()
+    sys.exit(1)
 
 tcp_socket.sendall(headers.encode_connect(my_ip, my_port))
 nodes = headers.receive_link_state(tcp_socket)
